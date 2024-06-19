@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading.Tasks;
-using static CafeteriaRecommendationSystem.Server;
 namespace CafeteriaRecommendationSystem.ClientHandler
 { 
     internal class ClientHandler
@@ -27,13 +23,13 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                         string action = requestParts.Length > 1 ? requestParts[1] : "";
                         string parameters = requestParts.Length > 2 ? requestParts[2] : "";
 
-                        LoginResult result = LoginUser(email);
+                        LoginResult result = Server.LoginUser(email);
                         string response;
 
                         if (result.Success)
                         {
                             response = $"Login successful as {result.Role} with UserId {result.UserId}. ";
-                            response += ExecuteRoleBasedFunctionality(result.Role, action, parameters);
+                            response += Server.ExecuteRoleBasedFunctionality(result.Role, action, parameters);
                         }
                         else
                         {
@@ -48,12 +44,6 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                 {
                     Console.WriteLine("Client Disconnected");
                 }
-                finally
-                {
-                    stream.Close();
-                    client.Close();
-                }
-
             }
         }
     }

@@ -1,22 +1,15 @@
 ﻿using MySql.Data.MySqlClient;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static CafeteriaRecommendationSystem.Server;
 
 namespace CafeteriaRecommendationSystem.Services
 {
-    internal class LoginService
-    {
+     public class LoginService
+     {
         public static LoginResult LoginUser(string email)
         {
-            string connectionString = "Server=localhost;Database=cafeteriarecommenderdb;User ID=root;Password=ronak5840R!;Port=3306";
-
             try
             {
-                using (MySqlConnection conn = new MySqlConnection(connectionString))
+                using (MySqlConnection conn = DatabaseUtility.GetConnection())
                 {
                     conn.Open();
                     string query = "SELECT u.UserId, RoleName FROM Users u JOIN Roles r ON u.RoleId = r.RoleId WHERE Email = @Email";
