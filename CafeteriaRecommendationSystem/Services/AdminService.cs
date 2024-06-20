@@ -1,9 +1,6 @@
 ﻿using MySql.Data.MySqlClient;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace CafeteriaRecommendationSystem.Services
 {
@@ -52,7 +49,7 @@ namespace CafeteriaRecommendationSystem.Services
                 {
                     connection.Open();
                     int mealTypeId;
-                    string getMealTypeIdQuery = "SELECT meal_type_id FROM meal_type WHERE type = @Type";
+                    string getMealTypeIdQuery = "SELECT meal_type_id FROM MealType WHERE type = @Type";
                     using (MySqlCommand getMealTypeIdCmd = new MySqlCommand(getMealTypeIdQuery, connection))
                     {
                         getMealTypeIdCmd.Parameters.AddWithValue("@Type", mealType);
@@ -63,7 +60,7 @@ namespace CafeteriaRecommendationSystem.Services
                         }
                         mealTypeId = Convert.ToInt32(result);
                     }
-                    string query = "INSERT INTO Items (Name, Price, AvailabilityStatus, MealTypeId) VALUES (@Name, @Price, @AvailabilityStatus,@MealTypeId)";
+                    string query = "INSERT INTO Item (Name, Price, AvailabilityStatus, MealTypeId) VALUES (@Name, @Price, @AvailabilityStatus,@MealTypeId)";
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@Name", name);
@@ -107,7 +104,7 @@ namespace CafeteriaRecommendationSystem.Services
                 {
                     connection.Open();
                     int mealTypeId;
-                    string getMealTypeIdQuery = "SELECT meal_type_id FROM meal_type WHERE type = @Type";
+                    string getMealTypeIdQuery = "SELECT meal_type_id FROM MealType WHERE type = @Type";
                     using (MySqlCommand getMealTypeIdCmd = new MySqlCommand(getMealTypeIdQuery, connection))
                     {
                         getMealTypeIdCmd.Parameters.AddWithValue("@Type", mealType);
@@ -119,7 +116,7 @@ namespace CafeteriaRecommendationSystem.Services
                         mealTypeId = Convert.ToInt32(result);
                     }
 
-                    string query = "UPDATE Items SET Name = @Name, Price = @Price, AvailabilityStatus = @AvailabilityStatus, MealTypeId = @MealTypeId WHERE ItemId = @ItemId";
+                    string query = "UPDATE Item SET Name = @Name, Price = @Price, AvailabilityStatus = @AvailabilityStatus, MealTypeId = @MealTypeId WHERE ItemId = @ItemId";
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@ItemId", itemId);
@@ -152,7 +149,7 @@ namespace CafeteriaRecommendationSystem.Services
                 using (MySqlConnection connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string checkQuery = "SELECT COUNT(*) FROM Items WHERE ItemId = @ItemId";
+                    string checkQuery = "SELECT COUNT(*) FROM Item WHERE ItemId = @ItemId";
                     using (MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection))
                     {
                         checkCmd.Parameters.AddWithValue("@ItemId", itemId);
@@ -163,7 +160,7 @@ namespace CafeteriaRecommendationSystem.Services
                             return "Admin: Item ID not found";
                         }
                     }
-                    string deleteQuery = "DELETE FROM Items WHERE ItemId = @ItemId";
+                    string deleteQuery = "DELETE FROM Item WHERE ItemId = @ItemId";
                     using (MySqlCommand deleteCmd = new MySqlCommand(deleteQuery, connection))
                     {
                         deleteCmd.Parameters.AddWithValue("@ItemId", itemId);
@@ -188,8 +185,8 @@ namespace CafeteriaRecommendationSystem.Services
                 {
                     connection.Open();
                     string query = "SELECT i.ItemId, i.Name, i.Price, i.AvailabilityStatus, m.type AS MealType " +
-                               "FROM Items i " +
-                               "INNER JOIN meal_type m ON i.MealTypeId = m.meal_type_id " +
+                               "FROM Item i " +
+                               "INNER JOIN MealType m ON i.MealTypeId = m.meal_type_id " +
                                "ORDER BY i.ItemId";
 
                     using (MySqlCommand cmd = new MySqlCommand(query, connection))

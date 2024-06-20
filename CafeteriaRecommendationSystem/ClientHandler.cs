@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 namespace CafeteriaRecommendationSystem.ClientHandler
 { 
@@ -7,9 +8,10 @@ namespace CafeteriaRecommendationSystem.ClientHandler
     {
         public static void HandleClient(object obj)
             {
+
                 TcpClient client = (TcpClient)obj;
                 NetworkStream stream = client.GetStream();
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[4096];
                 int byteCount;
 
                 try

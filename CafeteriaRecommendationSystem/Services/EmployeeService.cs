@@ -1,9 +1,11 @@
 ﻿using MySql.Data.MySqlClient;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Net.Http;
+using System.Linq;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace CafeteriaRecommendationSystem.Services
 {
@@ -23,14 +25,21 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        public static string ViewMenu(string mealType)
-        {
+            public static string ViewMenu(string mealType)
+            {
             try
             {
                 using (MySqlConnection connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string query = "SELECT ItemId, Name, Price, AvailabilityStatus FROM Items i JOIN Meal_Type mt ON i.MealTypeId = mt.meal_type_id WHERE mt.type = @MealType";
+                    string query = @"
+                    SELECT r.RecommendationId, r.ItemId, i.Name, i.Price, i.AvailabilityStatus, s.OverallRating, s.SentimentComment
+                    FROM Recommendation r
+                    JOIN Item i ON r.ItemId = i.ItemId
+                    LEFT JOIN Sentiment s ON i.ItemId = s.ItemId
+                    JOIN MealType mt ON i.MealTypeId = mt.meal_type_id
+                    WHERE mt.type = @MealType";
+
                     using (MySqlCommand cmd = new MySqlCommand(query, connection))
                     {
                         cmd.Parameters.AddWithValue("@MealType", mealType);
@@ -39,9 +48,16 @@ namespace CafeteriaRecommendationSystem.Services
                             StringBuilder menu = new StringBuilder();
                             while (reader.Read())
                             {
-                                menu.Append($"\nItem ID: {reader.GetInt32("ItemId")}, Item: {reader.GetString("Name")}, Price: {reader.GetDecimal("Price")}, Available: {reader.GetBoolean("AvailabilityStatus")}");
+                                int recommendationId = reader.GetInt32("RecommendationId");
+                                int itemId = reader.GetInt32("ItemId");
+                                string itemName = reader.GetString("Name");
+                                decimal price = reader.GetDecimal("Price");
+                                bool availabilityStatus = reader.GetBoolean("AvailabilityStatus");
+                                float overallRating = reader.GetFloat("OverallRating");
+                                string sentimentComment = reader.IsDBNull(reader.GetOrdinal("SentimentComment")) ? string.Empty : reader.GetString("SentimentComment");
+                                //  return menu.ToString();
                             }
-                            return menu.ToString();
+                            return "Successfully retrieved menu data.";
                         }
                     }
                 }
@@ -53,11 +69,9 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        public const string RapidAPIKey = "90d85ce8fbmshc1c3263c7beaa4cp17b345jsn7328aca98f46";
-        public const string RapidAPIHost = "text-sentiment-analyzer-api1.p.rapidapi.com";
         public static async Task<string> GiveFeedback(string parameters)
         {
-            
+
             try
             {
                 string[] feedbackParams = parameters.Split(';');
@@ -66,13 +80,13 @@ namespace CafeteriaRecommendationSystem.Services
                 string comment = feedbackParams[2];
                 int rating = int.Parse(feedbackParams[3]);
 
-                (string sentimentComment, string sentimentScore) = await ExtractKeywordWithAPI(comment);
+                (string sentimentComment, float sentimentScore) = CalculateSentimentScore(comment);
                 using (MySqlConnection connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
                     try
                     {
-                        string selectQuery = "SELECT SentimentId,OverallRating,SentimentScore FROM Sentiments WHERE ItemId = @ItemId";
+                        string selectQuery = "SELECT SentimentId,OverallRating,SentimentScore FROM Sentiment WHERE ItemId = @ItemId";
                         MySqlCommand selectCmd = new MySqlCommand(selectQuery, connection);
                         selectCmd.Parameters.AddWithValue("@ItemId", itemId);
                         MySqlDataReader reader = selectCmd.ExecuteReader();
@@ -94,34 +108,6 @@ namespace CafeteriaRecommendationSystem.Services
                             }
                         }
                         reader.Close();
-                        float overallSentimentScore = 0, overallRating = 0;
-                        if (sentimentId != 0)
-                        {
-                            overallSentimentScore = (float)((existingSentimentScore + double.Parse(sentimentScore)) / 2.0);
-                            overallRating = (float)((existingOverallRating + rating) / 2.0);
-                            string updateQuery = "UPDATE Sentiments SET OverallRating = @OverallRating, SentimentComment = @SentimentComment, SentimentScore = @SentimentScore WHERE ItemId = @ItemId";
-                            using (MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection))
-                            {
-                                updateCmd.Parameters.AddWithValue("@OverallRating", overallRating);
-                                updateCmd.Parameters.AddWithValue("@SentimentComment", sentimentComment);
-                                updateCmd.Parameters.AddWithValue("@SentimentScore", overallSentimentScore);
-                                updateCmd.Parameters.AddWithValue("@ItemId", itemId);
-                                updateCmd.ExecuteNonQuery();
-                            }
-                        }
-                        else
-                        {
-                            string insertQuery = "INSERT INTO Sentiments (ItemId, OverallRating, SentimentComment, SentimentScore) VALUES (@ItemId, @OverallRating, @SentimentComment, @SentimentScore)";
-                            using (MySqlCommand insertCmd = new MySqlCommand(insertQuery, connection))
-                            {
-                                insertCmd.Parameters.AddWithValue("@ItemId", itemId);
-                                insertCmd.Parameters.AddWithValue("@OverallRating", rating);
-                                insertCmd.Parameters.AddWithValue("@SentimentComment", sentimentComment);
-                                insertCmd.Parameters.AddWithValue("@SentimentScore", sentimentScore);
-                                insertCmd.ExecuteNonQuery();
-                            }
-                        }
-
 
                         string feedbackQuery = "INSERT INTO Feedback (UserId, ItemId, Comment, Rating, FeedbackDate) VALUES (@UserId, @ItemId, @Comment, @Rating, NOW())";
                         using (MySqlCommand insertCmd = new MySqlCommand(feedbackQuery, connection))
@@ -133,13 +119,55 @@ namespace CafeteriaRecommendationSystem.Services
                             insertCmd.ExecuteNonQuery();
                         }
 
-                        string votedItemsQuery = "INSERT INTO voteditems (UserId, ItemId, VoteDate) VALUES (@UserId, @ItemId, NOW())";
+                        string votedItemsQuery = "INSERT INTO voteditem (UserId, ItemId, VoteDate) VALUES (@UserId, @ItemId, NOW())";
                         using (MySqlCommand insertCmd = new MySqlCommand(votedItemsQuery, connection))
                         {
                             insertCmd.Parameters.AddWithValue("@UserId", userId);
                             insertCmd.Parameters.AddWithValue("@ItemId", itemId);
                             insertCmd.ExecuteNonQuery();
                         }
+
+                        int voteCount = 1;
+                        string countQuery = "SELECT COUNT(*) FROM VotedItem WHERE ItemId = @ItemId";
+                        using (MySqlCommand countCmd = new MySqlCommand(countQuery, connection))
+                        {
+                            countCmd.Parameters.AddWithValue("@ItemId", itemId);
+                            voteCount = Convert.ToInt32(countCmd.ExecuteScalar());
+                        }
+
+
+                        float overallSentimentScore = 0, overallRating = 0;
+                        if (sentimentId != 0)
+                        {
+                            overallSentimentScore = (float)((existingSentimentScore + sentimentScore) / 2.0);
+                            overallRating = (float)((existingOverallRating + rating) / 2.0);
+                            string updateQuery = "UPDATE Sentiment SET OverallRating = @OverallRating, SentimentComment = @SentimentComment, SentimentScore = @SentimentScore WHERE ItemId = @ItemId";
+                            using (MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection))
+                            {
+                                updateCmd.Parameters.AddWithValue("@OverallRating", overallRating);
+                                updateCmd.Parameters.AddWithValue("@SentimentComment", sentimentComment);
+                                updateCmd.Parameters.AddWithValue("@SentimentScore", overallSentimentScore);
+                                updateCmd.Parameters.AddWithValue("@ItemId", itemId);
+                                updateCmd.Parameters.AddWithValue("@VoteCount", voteCount);
+                                updateCmd.ExecuteNonQuery();
+                            }
+                        }
+                        else
+                        {
+                            string insertQuery = "INSERT INTO Sentiment (ItemId, OverallRating, SentimentComment, SentimentScore, VoteCount) VALUES (@ItemId, @OverallRating, @SentimentComment, @SentimentScore,@VoteCount)";
+                            using (MySqlCommand insertCmd = new MySqlCommand(insertQuery, connection))
+                            {
+                                insertCmd.Parameters.AddWithValue("@ItemId", itemId);
+                                insertCmd.Parameters.AddWithValue("@OverallRating", rating);
+                                insertCmd.Parameters.AddWithValue("@SentimentComment", sentimentComment);
+                                insertCmd.Parameters.AddWithValue("@SentimentScore", sentimentScore);
+                                insertCmd.Parameters.AddWithValue("@VoteCount", voteCount);
+                                insertCmd.ExecuteNonQuery();
+                            }
+                        }
+
+
+
                         return "Feedback submitted successfully.";
                     }
                     catch (Exception ex)
@@ -157,56 +185,47 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        private static async Task<(string sentiment, string sentimentScore)> ExtractKeywordWithAPI(string comment)
+
+        public static (string sentiment, float sentimentScore) CalculateSentimentScore(string comment)
         {
             try
             {
-                using (HttpClient client = new HttpClient())
+                var positiveWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\positive_words.txt");
+                var negativeWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\negative_words.txt");
+                //var words = comment.Split(new char[] { ' ', '.', ',', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+
+                comment = comment.ToLower();
+
+                int positiveCount = 0;
+                int negativeCount = 0;
+
+                foreach (var phrase in positiveWords)
                 {
-                    client.DefaultRequestHeaders.Add("x-rapidapi-key", RapidAPIKey);
-                    client.DefaultRequestHeaders.Add("x-rapidapi-host", RapidAPIHost);
-
-                    string endpoint = "https://text-sentiment-analyzer-api1.p.rapidapi.com/sentiment";
-                    string body = $"{{\"text\":\"{comment}\",\"extractors\":\"entities,topics\"}}";
-
-                    HttpResponseMessage response = await client.PostAsync(endpoint, new StringContent(body, Encoding.UTF8, "application/json"));
-                    if (!response.IsSuccessStatusCode)
+                    if (comment.Contains(phrase.ToLower()))
                     {
-
-                        string errorResponseBody = await response.Content.ReadAsStringAsync();
-                        Console.WriteLine("Error response: " + errorResponseBody);
+                        positiveCount++;
                     }
-                    response.EnsureSuccessStatusCode();
-
-                    string responseBody = await response.Content.ReadAsStringAsync();
-                    (string sentiment, string sentimentScore) = ParseKeywordResponse(responseBody);
-
-                    return (sentiment, sentimentScore);
                 }
+
+                foreach (var phrase in negativeWords)
+                {
+                    if (comment.Contains(phrase.ToLower()))
+                    {
+                        negativeCount++;
+                    }
+                }
+                float sentimentScore = (positiveCount - negativeCount) / (float)(positiveCount + negativeCount + 1);
+
+                string sentimentComment = sentimentScore >= 0.0 ? "Positive" : "Negative";
+
+                return (sentimentComment, sentimentScore);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error calling keyword extraction API: " + ex.Message);
-                return (string.Empty, string.Empty);
+                Console.WriteLine("Error calculating sentiment score: " + ex.Message);
+                return (string.Empty, 0);
             }
+
         }
-
-        public static (string sentiment, string sentimentScore) ParseKeywordResponse(string responseBody)
-        {
-            try
-            {
-                JObject json = JObject.Parse(responseBody);
-                string sentiment = json["sentiment"]?.ToString();
-                string sentimentScore = json["score"]?.ToString();
-                return (sentiment ?? "", sentimentScore ?? "");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error parsing keyword extraction response: " + ex.Message);
-                return (string.Empty, string.Empty);
-            }
-        }
-
-
     }
 }

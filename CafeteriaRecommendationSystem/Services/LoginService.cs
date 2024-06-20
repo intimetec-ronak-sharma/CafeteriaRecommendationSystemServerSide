@@ -9,14 +9,14 @@ namespace CafeteriaRecommendationSystem.Services
         {
             try
             {
-                using (MySqlConnection conn = DatabaseUtility.GetConnection())
+                using (MySqlConnection connection = DatabaseUtility.GetConnection())
                 {
-                    conn.Open();
-                    string query = "SELECT u.UserId, RoleName FROM Users u JOIN Roles r ON u.RoleId = r.RoleId WHERE Email = @Email";
-                    using (MySqlCommand cmd = new MySqlCommand(query, conn))
+                    connection.Open();
+                    string query = "SELECT u.UserId, RoleName FROM User u JOIN Roles r ON u.RoleId = r.RoleId WHERE Email = @Email";
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
-                        cmd.Parameters.AddWithValue("@Email", email);
-                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        command.Parameters.AddWithValue("@Email", email);
+                        using (MySqlDataReader reader = command.ExecuteReader())
                         {
                             if (reader.Read())
                             {
