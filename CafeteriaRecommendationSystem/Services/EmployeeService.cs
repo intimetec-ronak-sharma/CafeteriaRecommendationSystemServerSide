@@ -1,11 +1,9 @@
-﻿using MySql.Data.MySqlClient;
-using Newtonsoft.Json.Linq;
+﻿using CafeteriaRecommendationSystem.Models;
+using MySql.Data.MySqlClient;
 using System;
-using System.Linq;
 using System.IO;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace CafeteriaRecommendationSystem.Services
 {
@@ -19,13 +17,102 @@ namespace CafeteriaRecommendationSystem.Services
                     return ViewMenu(parameters);
                 case "givefeedback":
                     string[] feedbackParams = parameters.Split(';');
-                    return GiveFeedback(parameters).Result;
+                    return GiveFeedback(parameters);
+                case "voteitem":
+                    return GiveVoteForItem(parameters);
                 default:
                     return "Employee: Unknown action";
             }
         }
 
-            public static string ViewMenu(string mealType)
+
+        public static string ViewNotification()
+        {
+            StringBuilder notifications = new StringBuilder();
+            try
+            {
+                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT Message FROM notification WHERE NotificationDate >= NOW() - INTERVAL 1 DAY";
+
+                    using (MySqlCommand cmd = new MySqlCommand(query, connection))
+                    {
+                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                notifications.AppendLine(reader["Message"].ToString());
+                            }
+                        }
+                    }
+                }
+            }
+             catch (Exception ex)
+            {
+                  return $"An error occurred: {ex.Message}";
+            }
+            return notifications.Length > 0 ? notifications.ToString() : "No new notifications.";
+        }
+
+        public static string GiveVoteForItem(string itemIdParam)
+        {
+            int itemId;
+            if (!int.TryParse(itemIdParam, out itemId))
+            {
+                return "Invalid itemId. It should be an integer.";
+            }
+
+            try
+            {
+                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                {
+                    connection.Open();
+                    string checkQuery = "SELECT COUNT(*) FROM EmployeeVote WHERE ItemId = @ItemId";
+
+                    using (MySqlCommand checkCmd = new MySqlCommand(checkQuery, connection))
+                    {
+                        checkCmd.Parameters.AddWithValue("@ItemId", itemId);
+                        int existingCount = Convert.ToInt32(checkCmd.ExecuteScalar());
+
+                        if (existingCount > 0)
+                        {
+                            string updateQuery = "UPDATE EmployeeVote SET VoteCount = VoteCount + 1 WHERE ItemId = @ItemId";
+
+                            using (MySqlCommand updateCmd = new MySqlCommand(updateQuery, connection))
+                            {
+                                updateCmd.Parameters.AddWithValue("@ItemId", itemId);
+
+                                int updateResult = updateCmd.ExecuteNonQuery();
+
+                                return updateResult > 0 ? "Vote successfully recorded." : "Failed to update vote count.";
+                            }
+                        }
+                        else
+                        {
+                            string insertQuery = "INSERT INTO EmployeeVote (ItemId, VoteTime, VoteCount) VALUES (@ItemId, CURRENT_TIMESTAMP, 1)";
+
+                            using (MySqlCommand insertCmd = new MySqlCommand(insertQuery, connection))
+                            {
+                                insertCmd.Parameters.AddWithValue("@ItemId", itemId);
+
+                                int insertResult = insertCmd.ExecuteNonQuery();
+
+                                 return insertResult > 0 ? "Vote successfully recorded." : "Failed to record vote.";
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Database exception: " + ex.Message);
+                return "Failed to record vote.";
+            }
+        }
+
+
+        public static string ViewMenu(string mealType)
             {
             try
             {
@@ -45,8 +132,8 @@ namespace CafeteriaRecommendationSystem.Services
                         cmd.Parameters.AddWithValue("@MealType", mealType);
                         using (MySqlDataReader reader = cmd.ExecuteReader())
                         {
-                            StringBuilder menu = new StringBuilder();
-                            while (reader.Read())
+
+                            if (reader.Read())
                             {
                                 int recommendationId = reader.GetInt32("RecommendationId");
                                 int itemId = reader.GetInt32("ItemId");
@@ -55,9 +142,15 @@ namespace CafeteriaRecommendationSystem.Services
                                 bool availabilityStatus = reader.GetBoolean("AvailabilityStatus");
                                 float overallRating = reader.GetFloat("OverallRating");
                                 string sentimentComment = reader.IsDBNull(reader.GetOrdinal("SentimentComment")) ? string.Empty : reader.GetString("SentimentComment");
-                                //  return menu.ToString();
+
+                                string formattedLine = $"\nRecommendation ID: {recommendationId}, Item ID: {itemId}, Name: {itemName}, Price: {price}, Availability: {(availabilityStatus ? "Available" : "Not Available")}, Overall Rating: {overallRating}, Sentiment Comment: {sentimentComment}";
+
+                                return formattedLine;
                             }
-                            return "Successfully retrieved menu data.";
+                            else
+                            {
+                                return "No recommendations found for the specified meal type.";
+                            }
                         }
                     }
                 }
@@ -69,9 +162,8 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        public static async Task<string> GiveFeedback(string parameters)
+        public static string GiveFeedback(string parameters)
         {
-
             try
             {
                 string[] feedbackParams = parameters.Split(';');
@@ -84,8 +176,6 @@ namespace CafeteriaRecommendationSystem.Services
                 using (MySqlConnection connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    try
-                    {
                         string selectQuery = "SELECT SentimentId,OverallRating,SentimentScore FROM Sentiment WHERE ItemId = @ItemId";
                         MySqlCommand selectCmd = new MySqlCommand(selectQuery, connection);
                         selectCmd.Parameters.AddWithValue("@ItemId", itemId);
@@ -164,17 +254,8 @@ namespace CafeteriaRecommendationSystem.Services
                                 insertCmd.Parameters.AddWithValue("@VoteCount", voteCount);
                                 insertCmd.ExecuteNonQuery();
                             }
-                        }
-
-
-
-                        return "Feedback submitted successfully.";
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Database exception: " + ex.Message);
-                        return "Failed to submit feedback.";
-                    }
+                    return "Feedback submitted successfully.";
                 }
 
             }
@@ -190,10 +271,8 @@ namespace CafeteriaRecommendationSystem.Services
         {
             try
             {
-                var positiveWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\positive_words.txt");
-                var negativeWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\negative_words.txt");
-                //var words = comment.Split(new char[] { ' ', '.', ',', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
-
+                var positiveWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\Data\\positive_words.txt");
+                var negativeWords = File.ReadAllLines("C:\\Users\\ronak.sharma\\source\\repos\\CafeteriaRecommendationSystem\\CafeteriaRecommendationSystem\\Data\\negative_words.txt");
                 comment = comment.ToLower();
 
                 int positiveCount = 0;
@@ -214,7 +293,7 @@ namespace CafeteriaRecommendationSystem.Services
                         negativeCount++;
                     }
                 }
-                float sentimentScore = (positiveCount - negativeCount) / (float)(positiveCount + negativeCount + 1);
+                float sentimentScore = (positiveCount - negativeCount) / (positiveCount + negativeCount + 1);
 
                 string sentimentComment = sentimentScore >= 0.0 ? "Positive" : "Negative";
 

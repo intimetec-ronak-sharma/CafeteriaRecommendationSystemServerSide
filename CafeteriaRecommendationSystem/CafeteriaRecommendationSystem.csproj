@@ -178,6 +178,7 @@
     <Compile Include="Models\MealType.cs" />
     <Compile Include="Models\Notification.cs" />
     <Compile Include="Models\Recommendation.cs" />
+    <Compile Include="Models\UserSessionInfo.cs" />
     <Compile Include="Models\VotedItem.cs" />
     <Compile Include="Models\User.cs" />
     <Compile Include="Program.cs" />
@@ -193,12 +194,10 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="NewFolder1\" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="negative_words.txt" />
-    <Content Include="positive_words.txt" />
+    <Content Include="Data\negative_words.txt" />
+    <Content Include="Data\positive_words.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

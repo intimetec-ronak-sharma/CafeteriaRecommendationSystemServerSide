@@ -13,6 +13,11 @@ namespace CafeteriaRecommendationSystem
         {
             return RoleService.ExecuteRoleBasedFunctionality(role, action, parameters);
         }
+        public static string LogoutUser(string email)
+        {
+            return LoginService.LogoutUser(email);
+        }
+
     }
 }
 

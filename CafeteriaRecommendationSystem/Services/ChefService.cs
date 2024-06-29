@@ -1,8 +1,11 @@
 ﻿using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Common;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Text;
+using System.Xml.Linq;
 
 namespace CafeteriaRecommendationSystem.Services
 {
@@ -32,6 +35,8 @@ namespace CafeteriaRecommendationSystem.Services
                     }
                 case "viewfeedback":
                     return ViewFeedback();
+                case "viewemployeevote":
+                    return ViewEmployeeVote();
                 case "viewmenuitem":
                     return ViewMenuItems();
                 case "rolloutmenu":
@@ -47,6 +52,42 @@ namespace CafeteriaRecommendationSystem.Services
                     return "Please enter a valid option.";
             }
         }
+
+        public static string ViewEmployeeVote()
+        {
+            try
+            {
+                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                {
+                    connection.Open();
+                    string query = @" SELECT EmployeeVoteId, ItemId, VoteTime, VoteCount  FROM EmployeeVote";
+                    using (MySqlCommand cmd = new MySqlCommand(query, connection))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            var result = new StringBuilder();
+
+                            while (reader.Read())
+                            {
+                                int employeeVoteId = reader.GetInt32("EmployeeVoteId");
+                                int itemId = reader.GetInt32("ItemId");
+                                DateTime voteTime = reader.GetDateTime("VoteTime");
+                                int voteCount = reader.GetInt32("VoteCount");
+
+                                result.AppendLine($"EmployeeVoteId: {employeeVoteId}, ItemId: {itemId}, VoteTime: {voteTime}, VoteCount: {voteCount}");
+                            }
+                            return result.Length > 0 ? result.ToString() : "No employee votes found.";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Database exception: " + ex.Message);
+                return "Failed to retrieve employee votes.";
+            }
+        }
+
 
         public static string InsertChefRecommendation(int itemId)
         {
@@ -67,6 +108,17 @@ namespace CafeteriaRecommendationSystem.Services
                     MySqlCommand command = new MySqlCommand(insertQuery, connection);
                     command.Parameters.AddWithValue("@ItemId", itemId);
                     command.Parameters.AddWithValue("@SentimentId", sentimentId);
+
+
+                    string notificationMessage = $"Chef Roll out today Menu";
+                    string insertNotificationQuery = "INSERT INTO Notification (Message, NotificationDate) VALUES (@Message, @NotificationDate)";
+                    using (MySqlCommand insertNotificationCmd = new MySqlCommand(insertNotificationQuery, connection))
+                    {
+                        insertNotificationCmd.Parameters.AddWithValue("@Message", notificationMessage);
+                        insertNotificationCmd.Parameters.AddWithValue("@NotificationDate", DateTime.Now);
+                        //insertNotificationCmd.Parameters.AddWithValue("@ItemId", itemId);
+                        insertNotificationCmd.ExecuteNonQuery();
+                    }
 
                     int rowsAffected = command.ExecuteNonQuery();
                     if (rowsAffected > 0)

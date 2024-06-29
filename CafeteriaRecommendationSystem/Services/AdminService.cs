@@ -1,4 +1,5 @@
-﻿using MySql.Data.MySqlClient;
+﻿using CafeteriaRecommendationSystem.Models;
+using MySql.Data.MySqlClient;
 using System;
 using System.Text;
 
@@ -60,6 +61,8 @@ namespace CafeteriaRecommendationSystem.Services
                         }
                         mealTypeId = Convert.ToInt32(result);
                     }
+
+                    int itemId;
                     string query = "INSERT INTO Item (Name, Price, AvailabilityStatus, MealTypeId) VALUES (@Name, @Price, @AvailabilityStatus,@MealTypeId)";
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
@@ -68,8 +71,19 @@ namespace CafeteriaRecommendationSystem.Services
                         command.Parameters.AddWithValue("@AvailabilityStatus", availabilityStatus);
                         command.Parameters.AddWithValue("@MealTypeId", mealTypeId);
                         command.ExecuteNonQuery();
-                        return "Admin: Item added successfully";
+                        itemId = (int)command.LastInsertedId;
                     }
+
+                    string notificationMessage = $"Item '{name}' added to the menu.";
+                    string insertNotificationQuery = "INSERT INTO Notification (Message, NotificationDate, ItemId) VALUES (@Message, @NotificationDate,@ItemId)";
+                    using (MySqlCommand insertNotificationCmd = new MySqlCommand(insertNotificationQuery, connection))
+                    {
+                        insertNotificationCmd.Parameters.AddWithValue("@Message", notificationMessage);
+                        insertNotificationCmd.Parameters.AddWithValue("@NotificationDate", DateTime.Now);
+                        insertNotificationCmd.Parameters.AddWithValue("@ItemId", itemId);
+                        insertNotificationCmd.ExecuteNonQuery();
+                    }
+                    return "Admin: Item added successfully";
                 }
             }
             catch (Exception ex)
