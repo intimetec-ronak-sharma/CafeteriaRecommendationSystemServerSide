@@ -2,8 +2,8 @@
 {
     public class LoginResult
     {
-        public bool Success { get; set; }
+        public bool IsSuccessful { get; set; }
         public int UserId { get; set; }
-        public string Role { get; set; }
+        public string UserRole { get; set; }
     }
 }

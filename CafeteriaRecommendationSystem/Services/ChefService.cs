@@ -7,32 +7,16 @@ namespace CafeteriaRecommendationSystem.Services
 {
     internal class ChefService
     {
-        public static string ChefFunctionality(string action, string parameters)
+        public static string ExecuteChefAction(string action, string parameters)
         {
             switch (action.ToLower())
             {
                 case "recommenditem":
-                    string[] paramParts = parameters.Split(';');
-                    if (paramParts.Length == 2)
-                    {
-                        string menuType = paramParts[0];
-                        if (int.TryParse(paramParts[1], out int size))
-                        {
-                            return RecEngineGetFoodItemForNextDay(menuType, size);
-                        }
-                        else
-                        {
-                            return "Invalid size parameter.";
-                        }
-                    }
-                    else
-                    {
-                        return "Invalid parameters for recommenditem.";
-                    }
+                    return RecommendItem(parameters);
                 case "viewfeedback":
                     return ViewFeedback();
                 case "viewemployeevote":
-                    return ViewEmployeeVote();
+                    return ViewEmployeeVotes();
                 case "viewmenuitem":
                     return ViewMenuItems();
                 case "rolloutmenu":
@@ -51,15 +35,25 @@ namespace CafeteriaRecommendationSystem.Services
                 case "insertfeedbacknotification":
                     return InsertFeedbackNotification(parameters);
                 default:
-                    return "Please enter a valid option.";
+                    return "Invalid action specified.";
             }
+        }
+
+        public static string RecommendItem(string parameters)
+        {
+            string[] paramParts = parameters.Split(';');
+            if (paramParts.Length == 2 && int.TryParse(paramParts[1], out int size))
+            {
+                return GetRecommendedItemsForNextDay(paramParts[0], size);
+            }
+            return "Invalid parameters for recommenditem.";
         }
 
         public static string DiscardMenuItemList()
         {
             try
             {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
                     var negativeWords = File.ReadAllLines(@"C:\Users\ronak.sharma\source\repos\CafeteriaRecommendationSystem\CafeteriaRecommendationSystem\Data\negative_words.txt");
@@ -75,9 +69,9 @@ namespace CafeteriaRecommendationSystem.Services
 
                     string query = "SELECT i.ItemId, i.Name, s.OverallRating, s.CommentSentiments FROM Item i INNER JOIN Sentiment s ON i.ItemId = s.ItemId WHERE s.OverallRating < 2 AND (" + likeClauses.ToString() + ")";
 
-                    using (MySqlCommand cmd = new MySqlCommand(query, connection))
+                    using (var cmd = new MySqlCommand(query, connection))
                     {
-                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        using (var reader = cmd.ExecuteReader())
                         {
                             if (!reader.HasRows)
                             {
@@ -111,59 +105,24 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        public static string GetItemNameById(string itemId)
-        {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
-                {
-                    connection.Open();
-                    string selectQuery = "SELECT Name FROM Item WHERE ItemId = @ItemId";
-                    using (MySqlCommand cmd = new MySqlCommand(selectQuery, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@ItemId", itemId);
-                        object result = cmd.ExecuteScalar();
-                        if (result != null)
-                        {
-                            return result.ToString();
-                        }
-                        else
-                        {
-                            return null;
-                        }
-                    }
-                }
-        }
-
         public static string RemoveFoodItem(string itemId)
         {
-            DateTime today = DateTime.Now;
-            if (today.Day != 1)
+            if (DateTime.Now.Day != 1)
             {
                 return "Food items can only be removed on the first day of the month.";
             }
             try
             {
-                string itemName = GetItemNameById(itemId);
+                string itemName = SqlService.GetItemNameById(itemId);
                 if (itemName == null)
                 {
                     return $"Item with ID '{itemId}' not found.";
                 }
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string deleteQuery = "DELETE FROM Item WHERE Name = @ItemName";
-                    using (MySqlCommand cmd = new MySqlCommand(deleteQuery, connection))
-                    {
-                        cmd.Parameters.AddWithValue("@ItemName", itemId);
-                        int rowsAffected = cmd.ExecuteNonQuery();
-                        if (rowsAffected > 0)
-                        {
-                            return $"Successfully removed item: {itemName}";
-                        }
-                        else
-                        {
-                            return $"Item '{itemName}' not found.";
-                        }
-                    }
+                    int rowsAffected = SqlService.DeleteItemByName(connection, itemName);
+                    return rowsAffected > 0 ? $"Successfully removed item: {itemName}" : $"Item '{itemName}' not found.";
                 }
             }
             catch (Exception ex)
@@ -175,43 +134,37 @@ namespace CafeteriaRecommendationSystem.Services
         {
             try
             {
-                string itemName = GetItemNameById(itemId);
-                if (itemName == null)
-                {
-                    return $"Item with ID '{itemId}' not found.";
-                }
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-
-                    string insertQuery = "INSERT INTO Notification (Message, NotificationDate) VALUES (@Message, @NotificationDate)";
-                    using (MySqlCommand cmd = new MySqlCommand(insertQuery, connection))
+                    string itemName = SqlService.GetItemNameById(itemId);
+                    if (itemName == null)
                     {
-                        string notificationMessage = $"We are trying to improve your experience with {itemName}. Please provide your feedback and help us";
-                        cmd.Parameters.AddWithValue("@Message", notificationMessage);
-                        cmd.Parameters.AddWithValue("@NotificationDate", DateTime.Now);
-                        cmd.ExecuteNonQuery();
+                        return $"Item with ID '{itemId}' not found.";
                     }
+                    string notificationMessage = $"We are trying to improve your experience with {itemName}. Please provide your feedback and help us";
+                    SqlService.InsertNotification(connection, notificationMessage);
+
+                    return "Feedback notification inserted successfully.";
                 }
-                return "Feedback notification inserted successfully.";
             }
             catch (Exception ex)
             {
                 return "Error inserting feedback into notification table: " + ex.Message;
             }
         }
-        public static string ViewEmployeeVote()
+        public static string ViewEmployeeVotes()
         {
             try
             {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
                     string query = "SELECT EmployeeVoteId, ItemId, VoteTime, VoteCount FROM EmployeeVote";
 
-                    using (MySqlCommand cmd = new MySqlCommand(query, connection))
+                    using (var cmd = new MySqlCommand(query, connection))
                     {
-                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        using (var reader = cmd.ExecuteReader())
                         {
                             if (reader.HasRows)
                             {
@@ -229,7 +182,6 @@ namespace CafeteriaRecommendationSystem.Services
                                         $"{reader.GetDateTime("VoteTime"),-25} " +
                                         $"{reader.GetInt32("VoteCount"),-10}");
                                 }
-
                                 return result.ToString();
                             }
                             else
@@ -242,54 +194,31 @@ namespace CafeteriaRecommendationSystem.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Database exception: " + ex.Message);
                 return "Failed to retrieve employee votes.";
             }
         }
-
 
         public static string InsertChefRecommendation(int itemId)
         {
             try
             {
-                int sentimentId = GetSentimentId(itemId);
-
-                if (sentimentId == -1)
-                {
-                    return "No sentiment comments are available for this particular ItemID";
-                }
-
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string checkQuery = "SELECT COUNT(*) FROM Recommendation WHERE ItemId = @ItemId";
-                    using (MySqlCommand checkCommand = new MySqlCommand(checkQuery, connection))
+                    int sentimentId = SqlService.GetSentimentId(itemId);
+                    if (sentimentId == -1)
                     {
-                        checkCommand.Parameters.AddWithValue("@ItemId", itemId);
-                        int count = Convert.ToInt32(checkCommand.ExecuteScalar());
-
-                        if (count > 0)
-                        {
-                            return "Item is already recommended.";
-                        }
-                    }
-                    string insertQuery = @"INSERT INTO Recommendation (ItemId, SentimentId)
-                                   VALUES (@ItemId, @SentimentId)";
-                    MySqlCommand command = new MySqlCommand(insertQuery, connection);
-                    command.Parameters.AddWithValue("@ItemId", itemId);
-                    command.Parameters.AddWithValue("@SentimentId", sentimentId);
-                    string notificationMessage = $"Chef Roll out today Menu";
-                    string insertNotificationQuery = "INSERT INTO Notification (Message, NotificationDate) VALUES (@Message, @NotificationDate)";
-                    using (MySqlCommand insertNotificationCmd = new MySqlCommand(insertNotificationQuery, connection))
-                    {
-                        insertNotificationCmd.Parameters.AddWithValue("@Message", notificationMessage);
-                        insertNotificationCmd.Parameters.AddWithValue("@NotificationDate", DateTime.Now);
-                        insertNotificationCmd.ExecuteNonQuery();
+                        return "No sentiment comments are available for this particular ItemID";
                     }
 
-                    int rowsAffected = command.ExecuteNonQuery();
-                    if (rowsAffected > 0)
+                    if (SqlService.IsItemRecommended(connection, itemId))
                     {
+                        return "Item is already recommended.";
+                    }
+                    if (SqlService.InsertRecommendation(connection, itemId, sentimentId))
+                    {
+                        string notificationMessage = $"Chef Roll out today Menu";
+                        SqlService.InsertNotification(connection, notificationMessage);
                         return "Recommendation inserted successfully.";
                     }
                     else
@@ -305,55 +234,21 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-        public static int GetSentimentId(int itemId)
-        {
-            try
-            {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
-                {
-                    connection.Open();
-                    string query = "SELECT SentimentId FROM Sentiment WHERE ItemId = @ItemId";
-                    MySqlCommand command = new MySqlCommand(query, connection);
-                    command.Parameters.AddWithValue("@ItemId", itemId);
-
-                    object result = command.ExecuteScalar();
-                    if (result != null)
-                    {
-                        return Convert.ToInt32(result);
-                    }
-                    else
-                    {
-                        return -1; 
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Exception occurred: " + ex.Message);
-                return -1; 
-            }
-        }
-
-        public static string RecEngineGetFoodItemForNextDay(string menuType, int returnItemListSize)
+        public static string GetRecommendedItemsForNextDay(string menuType, int returnItemListSize)
         {
             var recommendedItems = new StringBuilder();
-            string query = "SELECT s.ItemId, s.OverallRating, s.SentimentScore, s.VoteCount FROM Sentiment s JOIN Item i ON s.ItemId = i.ItemId " +
-                           "JOIN MealType m ON i.MealTypeId = m.meal_type_id " +
-                           "WHERE m.MealType = @MenuType " +
-                           "ORDER BY s.OverallRating DESC, s.SentimentScore DESC, s.VoteCount DESC " +
-                           "LIMIT @ReturnItemListSize";
+            string query = SqlService.GetRecommendedItems();
 
             try
             {
-                using (MySqlConnection conn = DatabaseUtility.GetConnection())
+                using (var conn = DatabaseUtility.GetConnection())
                 {
                     conn.Open();
-                    using (MySqlCommand cmd = new MySqlCommand(query, conn))
+                    using (var cmd = new MySqlCommand(query, conn))
                     {
                         cmd.Parameters.AddWithValue("@MenuType", menuType);
                         cmd.Parameters.AddWithValue("@ReturnItemListSize", returnItemListSize);
-
-                        using (MySqlDataReader reader = cmd.ExecuteReader())
+                        using (var reader = cmd.ExecuteReader())
                         {
                             if (reader.HasRows)
                             {
@@ -365,10 +260,10 @@ namespace CafeteriaRecommendationSystem.Services
                                 while (reader.Read())
                                 {
                                     recommendedItems.AppendLine(
-                                        $"{reader.GetInt32("ItemId"),-10} " +
-                                        $"{reader.GetFloat("OverallRating"),-10:f2} " +
-                                        $"{reader.GetFloat("SentimentScore"),-18:f2} " +
-                                        $"{reader.GetInt32("VoteCount"),-10}");
+                                    $"{reader.GetInt32("ItemId"),-10} " +
+                                    $"{reader.GetFloat("OverallRating"),-10:f2} " +
+                                    $"{reader.GetFloat("SentimentScore"),-18:f2} " +
+                                    $"{reader.GetInt32("VoteCount"),-10}");
                                 }
                             }
                             else
@@ -381,7 +276,6 @@ namespace CafeteriaRecommendationSystem.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Database exception: " + ex.Message);
                 return "Failed to retrieve recommended items.";
             }
 
@@ -392,16 +286,13 @@ namespace CafeteriaRecommendationSystem.Services
         {
             try
             {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string query = "SELECT i.ItemId, i.Name, i.Price, i.AvailabilityStatus, m.MealType AS MealType, i.DietPreference, i.SpiceLevel, i.FoodPreference, i.SweetTooth FROM Item i " +
-                                   "INNER JOIN MealType m ON i.MealTypeId = m.meal_type_id " +
-                                   "ORDER BY i.ItemId";
-
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    string query = SqlService.ViewMenuItemsQuery();
+                    using (var command = new MySqlCommand(query, connection))
                     {
-                        using (MySqlDataReader reader = command.ExecuteReader())
+                        using (var reader = command.ExecuteReader())
                         {
                             if (reader.HasRows)
                             {
@@ -442,22 +333,15 @@ namespace CafeteriaRecommendationSystem.Services
             }
         }
 
-
         public static string ViewFeedback()
         {
-
             try
             {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
-                    string query = "SELECT f.FeedbackId, f.UserId, f.ItemId, i.Name AS ItemName, f.Comment, f.Rating, f.FeedbackDate " +
-                                   "FROM Feedback f " +
-                                   "JOIN User u ON f.UserId = u.UserId " +
-                                   "JOIN Item i ON f.ItemId = i.ItemId " +
-                                   "WHERE f.FeedbackDate >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
-
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    string query = SqlService.ViewFeedback();
+                    using (var command = new MySqlCommand(query, connection))
                     {
                         StringBuilder feedbackList = new StringBuilder();
                         feedbackList.AppendLine("\nLast One Day Feedback:");
@@ -486,7 +370,5 @@ namespace CafeteriaRecommendationSystem.Services
                 return "Failed to retrieve recent feedback.";
             }
         }
-
     }
-
 }

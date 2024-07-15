@@ -6,7 +6,7 @@ namespace CafeteriaRecommendationSystem
     {
         public static LoginResult LoginUser(string email)
         {
-            return LoginService.LoginUser(email);
+            return UserService.LoginUser(email);
         }
 
         public static string ExecuteRoleBasedFunctionality(string role, string action, string parameters)
@@ -15,7 +15,7 @@ namespace CafeteriaRecommendationSystem
         }
         public static string LogoutUser(string email)
         {
-            return LoginService.LogoutUser(email);
+            return UserService.LogoutUser(email);
         }
 
     }

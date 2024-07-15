@@ -1,23 +1,20 @@
 ﻿using CafeteriaRecommendationSystem.Models;
 using CafeteriaRecommendationSystem.Services;
-using MySqlX.XDevAPI;
 using System;
 using System.Net.Sockets;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 namespace CafeteriaRecommendationSystem.ClientHandler
 { 
-    internal class ClientHandler
+    public class ClientHandler
     {
         public static void HandleClient(object obj)
         {
-
             TcpClient client = (TcpClient)obj;
             NetworkStream stream = client.GetStream();
             byte[] buffer = new byte[8192];
             int byteCount;
 
-            LoginService sessionManager = new LoginService();
+            UserService sessionManager = new UserService();
             UserSessionInfo currentSessionInfo = null;
             string currentEmail = string.Empty;
             string response;
@@ -34,19 +31,16 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                     string parameters = requestParts.Length > 2 ? requestParts[2] : "";
 
                     LoginResult result = Server.LoginUser(email);
-
-                    if (result.Success && action == "")
+                    if (result.IsSuccessful && action == "")
                     {
-                        response = $"Login successful as {result.Role} with UserId {result.UserId}.";
-
+                        response = $"Login successful as {result.UserRole} with UserId {result.UserId}.";
                         currentSessionInfo = sessionManager.LogUserLogin(result.UserId);
                         DateTime currentLoginTime = currentSessionInfo.LoginTime;
                         currentEmail = email;
-
                         DateTime? lastLoginTime = sessionManager.GetLastLoginTime(result.UserId, currentLoginTime);
                         StringBuilder notificationResponse = new StringBuilder();
 
-                        if (result.Role == "Employee")
+                        if (result.UserRole == "Employee")
                         { 
                             var notifications = sessionManager.GetUnreadNotifications(lastLoginTime);
 
@@ -64,7 +58,6 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                         response += notificationResponse.ToString();
                         byte[] responseData = Encoding.ASCII.GetBytes(response);
                         stream.Write(responseData, 0, responseData.Length);
-
                     }
 
                     else if (action.ToLower() == "logout")
@@ -85,14 +78,13 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                     }
                     else
                     {
-
-                        if (result.Success && action != "")
+                        if (result.IsSuccessful && action != "")
                         {
-                            response = Server.ExecuteRoleBasedFunctionality(result.Role, action, parameters);
+                            response = Server.ExecuteRoleBasedFunctionality(result.UserRole, action, parameters);
                         }
-                        else if (result.Success)
+                        else if (result.IsSuccessful)
                         {
-                            response = $"Login successful as {result.Role} with UserId {result.UserId}. ";
+                            response = $"Login successful as {result.UserRole} with UserId {result.UserId}. ";
                         }
                         else
                         {
@@ -110,14 +102,14 @@ namespace CafeteriaRecommendationSystem.ClientHandler
                 Console.WriteLine("Client Disconnected");
             }
         }
-            public static void HandleClientDisconnection(LoginService sessionManager, UserSessionInfo currentSessionInfo, string currentEmail)
+        public static void HandleClientDisconnection(UserService sessionManager, UserSessionInfo currentSessionInfo, string currentEmail)
+        {
+            if (currentSessionInfo.SessionID > 0 && !string.IsNullOrEmpty(currentEmail))
             {
-                if (currentSessionInfo.SessionID > 0 && !string.IsNullOrEmpty(currentEmail))
-                {
-                    sessionManager.LogUserLogout(currentSessionInfo.SessionID);
-                    Server.LogoutUser(currentEmail);
-                    Console.WriteLine("Client logged out and session ended.");
-                }
+                sessionManager.LogUserLogout(currentSessionInfo.SessionID);
+                Server.LogoutUser(currentEmail);
+                Console.WriteLine("Client logged out and session ended.");
             }
+        }
         }
 }

@@ -5,28 +5,28 @@ using System.Collections.Generic;
 
 namespace CafeteriaRecommendationSystem.Services
 {
-     public class LoginService
+     public class UserService
      {
-        public static Dictionary<string, LoginResult> activeUsers = new Dictionary<string, LoginResult>();
+        private static Dictionary<string, LoginResult> activeUsers = new Dictionary<string, LoginResult>();
 
         public static LoginResult LoginUser(string email)
         {
             try
             {
-                using (MySqlConnection connection = DatabaseUtility.GetConnection())
+                using (var connection = DatabaseUtility.GetConnection())
                 {
                     connection.Open();
                     string query = "SELECT u.UserId, RoleName FROM User u JOIN Roles r ON u.RoleId = r.RoleId WHERE Email = @Email";
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    using (var command = new MySqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@Email", email);
-                        using (MySqlDataReader reader = command.ExecuteReader())
+                        using (var reader = command.ExecuteReader())
                         {
                             if (reader.Read())
                             {
                                 int userId = reader.GetInt32(0);
                                 string role = reader.GetString(1);
-                                var loginResult = new LoginResult { Success = true, UserId = userId, Role = role };
+                                var loginResult = new LoginResult { IsSuccessful = true, UserId = userId, UserRole = role };
                                 activeUsers[email] = loginResult;
 
                                 return loginResult;
@@ -37,9 +37,9 @@ namespace CafeteriaRecommendationSystem.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Database exception: " + ex.Message);
+                Console.WriteLine("Error logging in user: {ex.Message}");
             }
-            return new LoginResult { Success = false, UserId = 0, Role = "" };
+            return new LoginResult { IsSuccessful = false, UserId = 0, UserRole = "" };
         }
         public static string LogoutUser(string email)
         {
@@ -56,23 +56,23 @@ namespace CafeteriaRecommendationSystem.Services
 
         public UserSessionInfo LogUserLogin(int userId)
         {
-            using (MySqlConnection conn = DatabaseUtility.GetConnection())
+            using (var connection = DatabaseUtility.GetConnection())
             {
-                conn.Open();
+                connection.Open();
 
                 string deleteOldSessionsQuery = "DELETE FROM UserSession WHERE UserID = @UserID AND SessionID NOT IN ( SELECT SessionID FROM ( SELECT SessionID FROM UserSession WHERE UserID = @UserID ORDER BY LoginTime DESC LIMIT 1 ) AS subquery)";
-                MySqlCommand deleteCmd = new MySqlCommand(deleteOldSessionsQuery, conn);
+                MySqlCommand deleteCmd = new MySqlCommand(deleteOldSessionsQuery, connection);
                 deleteCmd.Parameters.AddWithValue("@UserID", userId);
                 deleteCmd.ExecuteNonQuery();
 
                 string insertLoginQuery = "INSERT INTO UserSession (UserID, LoginTime) VALUES (@UserID, NOW())";
-                MySqlCommand cmd = new MySqlCommand(insertLoginQuery, conn);
+                MySqlCommand cmd = new MySqlCommand(insertLoginQuery, connection);
                 cmd.Parameters.AddWithValue("@UserID", userId);
                 cmd.ExecuteNonQuery();
                 int sessionId = (int)cmd.LastInsertedId;
 
                 string selectLoginTimeQuery = "SELECT LoginTime FROM UserSession WHERE SessionID = @SessionID";
-                cmd = new MySqlCommand(selectLoginTimeQuery, conn);
+                cmd = new MySqlCommand(selectLoginTimeQuery, connection);
                 cmd.Parameters.AddWithValue("@SessionID", sessionId);
                 var result = cmd.ExecuteScalar();
 
@@ -84,7 +84,7 @@ namespace CafeteriaRecommendationSystem.Services
 
         public void LogUserLogout(int sessionId)
         {
-            using (MySqlConnection conn = DatabaseUtility.GetConnection())
+            using (var conn = DatabaseUtility.GetConnection())
             {
                 conn.Open();
                 string updateLogoutQuery = "UPDATE UserSession SET LogoutTime = NOW(), TotalLoginTime = TIMEDIFF(NOW(), LoginTime) WHERE SessionID = @SessionID";
@@ -97,7 +97,7 @@ namespace CafeteriaRecommendationSystem.Services
         public List<string> GetUnreadNotifications(DateTime? lastLoginTime)
         {
             List<string> notifications = new List<string>();
-            using (MySqlConnection conn = DatabaseUtility.GetConnection())
+            using (var conn = DatabaseUtility.GetConnection())
             {
                 conn.Open();
                 string selectNotificationsQuery;
@@ -124,7 +124,7 @@ namespace CafeteriaRecommendationSystem.Services
         }
         public DateTime? GetLastLoginTime(int userId, DateTime currentLoginTime)
         {
-            using (MySqlConnection conn = DatabaseUtility.GetConnection())
+            using (var conn = DatabaseUtility.GetConnection())
             {
                 conn.Open();
                 string selectLastLoginTimeQuery = @"SELECT MAX(LoginTime) FROM UserSession WHERE UserID = @UserID AND LoginTime <> @CurrentLoginTime";

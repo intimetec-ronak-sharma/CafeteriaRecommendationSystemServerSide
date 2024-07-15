@@ -7,11 +7,11 @@
             switch (role)
             {
                 case "Admin":
-                    return AdminService.AdminFunctionality(action, parameters);
+                    return AdminService.ExecuteAdminAction(action, parameters);
                 case "Chef":
-                    return ChefService.ChefFunctionality(action, parameters);
+                    return ChefService.ExecuteChefAction(action, parameters);
                 case "Employee":
-                    return EmployeeService.EmployeeFunctionality(action, parameters);
+                    return EmployeeService.ExecuteEmployeeAction(action, parameters);
                 default:
                     return "Please enter a valid option.";
             }

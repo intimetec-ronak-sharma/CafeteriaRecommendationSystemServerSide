@@ -7,63 +7,63 @@ happy
 pleased
 satisfied
 wonderful
-Very good
-Truly great
-Absolutely excellent
-Totally awesome
-Simply fantastic
-Extremely happy
-Really pleased
-Completely satisfied
-Truly wonderful
-Highly commendable
-Superb
-Delicious
-Outstanding
-Exceptional
-Magnificent
-Incredible
-Exquisite
-Marvelous
-Divine
-Perfect
-Top-notch
-Scrumptious
-Delightful
-Amazing
-Phenomenal
-Fantastic flavor
-Mouth-watering
-Heavenly
-Impressive
-Unforgettable
-Beyond expectations
-Sensational
-Bravissimo
-Five-star quality
-Second to none
-Unparalleled
-Masterfully prepared
-Gourmet experience
-Flawless
-Superb presentation
-Brilliant
-Remarkable
-Refreshing
-Delectable
-Exceptional taste
-Savory
-Perfectly cooked
-Great texture
-Full of flavor
-Wonderful aroma
-Rich and flavorful
-Tender and juicy
-Fresh and vibrant
-Perfectly seasoned
-Zesty
-Comforting
-Balanced flavors
-Luscious
-Inviting
-Satisfaction guaranteed
+very good
+truly great
+absolutely excellent
+totally awesome
+simply fantastic
+extremely happy
+really pleased
+completely satisfied
+truly wonderful
+highly commendable
+superb
+delicious
+outstanding
+exceptional
+magnificent
+incredible
+exquisite
+marvelous
+divine
+perfect
+top-notch
+scrumptious
+delightful
+amazing
+phenomenal
+fantastic flavor
+mouth-watering
+heavenly
+impressive
+unforgettable
+beyond expectations
+sensational
+bravissimo
+five-star quality
+second to none
+unparalleled
+masterfully prepared
+gourmet experience
+flawless
+superb presentation
+brilliant
+remarkable
+refreshing
+delectable
+exceptional taste
+savory
+perfectly cooked
+great texture
+full of flavor
+wonderful aroma
+rich and flavorful
+tender and juicy
+fresh and vibrant
+perfectly seasoned
+zesty
+comforting
+balanced flavors
+luscious
+inviting
+satisfaction guaranteed
