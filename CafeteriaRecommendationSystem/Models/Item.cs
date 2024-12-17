@@ -6,7 +6,15 @@ using System.Threading.Tasks;
 
 namespace CafeteriaRecommendationSystem.Models
 {
-    internal class Item
+    public class Item
     {
+        public string Name { get; set; }
+        public decimal Price { get; set; }
+        public bool AvailabilityStatus { get; set; }
+        public int MealTypeId { get; set; }
+        public string DietPreference { get; set; }
+        public string SpiceLevel { get; set; }
+        public string FoodPreference { get; set; }
+        public string SweetTooth { get; set; }
     }
 }
